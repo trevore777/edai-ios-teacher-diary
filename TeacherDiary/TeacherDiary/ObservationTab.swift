@@ -90,15 +90,14 @@ struct ObservationTab: View {
 
     // filters
     @State private var selectedBehaviourFilter: BehaviourCategory? = nil
-    @State private var searchText: String = ""    // filter by student/class text
+    @State private var searchText: String = ""
 
     // add/edit
     @State private var showForm = false
     @State private var editingRecord: ObservationRecord? = nil
 
-    // detail + email
-    @State private var showDetail = false
-    @State private var selectedRecordForDetail: ObservationRecord? = nil
+    // detail (sheet with optional item – avoids blank sheet)
+    @State private var selectedRecord: ObservationRecord? = nil
 
     var body: some View {
         NavigationView {
@@ -113,8 +112,7 @@ struct ObservationTab: View {
                     List {
                         ForEach(filtered) { record in
                             Button {
-                                selectedRecordForDetail = record
-                                showDetail = true
+                                selectedRecord = record
                             } label: {
                                 ObservationRow(record: record)
                             }
@@ -136,6 +134,10 @@ struct ObservationTab: View {
                     } label: { Label("New", systemImage: "plus") }
                 }
             }
+            // New sheet style: binds directly to selectedRecord
+            .sheet(item: $selectedRecord) { record in
+                ObservationDetailView(record: record)
+            }
             .sheet(isPresented: $showForm) {
                 ObservationForm(
                     record: editingRecord ?? ObservationRecord(
@@ -154,11 +156,6 @@ struct ObservationTab: View {
                     editingRecord = nil
                 }
             }
-            .sheet(isPresented: $showDetail) {
-                if let record = selectedRecordForDetail {
-                    ObservationDetailView(record: record)
-                }
-            }
         }
     }
 
@@ -166,17 +163,13 @@ struct ObservationTab: View {
 
     private var filteredRecords: [ObservationRecord] {
         store.records.filter { record in
-            // Behaviour filter
             if let behaviour = selectedBehaviourFilter, record.behaviour != behaviour {
                 return false
             }
-            // Search filter (name or class)
             if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
                 let token = searchText.lowercased()
                 let haystack = (record.studentName + " " + record.className).lowercased()
-                if !haystack.contains(token) {
-                    return false
-                }
+                if !haystack.contains(token) { return false }
             }
             return true
         }
@@ -326,6 +319,8 @@ private struct ObservationDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let record: ObservationRecord
 
+    @State private var showEmailError = false
+
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 16) {
@@ -359,7 +354,9 @@ private struct ObservationDetailView: View {
                 Spacer()
 
                 Button {
-                    emailRTC(for: record)
+                    if !emailRTC(for: record) {
+                        showEmailError = true
+                    }
                 } label: {
                     Label("Email to RTC", systemImage: "envelope.fill")
                         .frame(maxWidth: .infinity)
@@ -369,9 +366,18 @@ private struct ObservationDetailView: View {
             .padding()
             .navigationTitle("Observation Detail")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Label("Back", systemImage: "chevron.backward")
+                    }
                 }
+            }
+            .alert("Unable to open Mail", isPresented: $showEmailError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Please ensure the Mail app is set up on this device, then try again.")
             }
         }
     }
@@ -383,9 +389,16 @@ private struct ObservationDetailView: View {
         return df.string(from: date)
     }
 
-    private func emailRTC(for record: ObservationRecord) {
-        let to = "ResponsibleThinkingProcessRC@kingscollege.qld.edu.au"
+    /// Returns true if it successfully asked the system to open Mail.
+    @discardableResult
+    private func emailRTC(for record: ObservationRecord) -> Bool {
+        let primary = "ResponsibleThinkingProcessRC@kingscollege.qld.edu.au"
+        let secondary = "reedycreekrtc@kingscollege.qld.edu.au"
+
+        let toField = "\(primary),\(secondary)"
+
         let subject = "Observation – \(record.studentName) – \(record.behaviour.rawValue)"
+
         let body = """
         Dear RTC team,
 
@@ -401,15 +414,17 @@ private struct ObservationDetailView: View {
 
         Kind regards,
         Mr Elliott
-        (telliott@kingscollege.qld.edu.au)
+        telliott@kingscollege.qld.edu.au
         """
 
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let urlString = "mailto:\(to)?subject=\(encodedSubject)&body=\(encodedBody)"
+        let urlString = "mailto:\(toField)?subject=\(encodedSubject)&body=\(encodedBody)"
 
-        if let url = URL(string: urlString) {
-            UIApplication.shared.open(url)
-        }
+        guard let url = URL(string: urlString) else { return false }
+        guard UIApplication.shared.canOpenURL(url) else { return false }
+
+        UIApplication.shared.open(url)
+        return true
     }
 }
