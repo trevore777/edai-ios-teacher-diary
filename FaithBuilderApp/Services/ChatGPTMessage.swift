@@ -62,22 +62,20 @@ final class ChatGPTService {
     static let shared = ChatGPTService()
     private init() {}
     
-    // MARK: - Q&A for a single question
+    // MARK: - Single answer
     
     func answerQuestion(
         topic: StudyTopic,
         question: String
     ) async throws -> String {
-        
         let key = ApiKeys.openAI.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !key.hasPrefix("YOUR_") else {
             throw ChatGPTServiceError.missingAPIKey
         }
         
-        let modelName = "gpt-4.1-mini"   // or "gpt-4o-mini" depending on your account
-        
-        let topicMeta = TopicMetadata.metadata(for: topic)
-        let systemText = buildSystemPrompt(for: topic, metadata: topicMeta)
+        let modelName = "gpt-4.1-mini"  // or "gpt-4o-mini"
+        let meta = TopicMetadata.metadata(for: topic)
+        let systemText = buildSystemPrompt(for: topic, metadata: meta)
         
         let messages = [
             ChatGPTMessage(role: "system", content: systemText),
@@ -93,30 +91,27 @@ final class ChatGPTService {
         
         let (data, http) = try await sendRequest(body: body, apiKey: key)
         let result = try decodeResponse(data: data, http: http)
-        
         guard let first = result.choices.first else {
             throw ChatGPTServiceError.noChoices
         }
-        
         return first.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    // MARK: - Generate multiple study questions (no answers)
+    // MARK: - Generate multiple questions (no answers)
     
     func generateStudyQuestions(
         topic: StudyTopic,
         prompt: String,
         desiredCount: Int
     ) async throws -> [String] {
-        
         let key = ApiKeys.openAI.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty, !key.hasPrefix("YOUR_") else {
             throw ChatGPTServiceError.missingAPIKey
         }
         
         let modelName = "gpt-4.1-mini"
-        let topicMeta = TopicMetadata.metadata(for: topic)
-        let systemText = buildQuestionGeneratorPrompt(for: topic, metadata: topicMeta, desiredCount: desiredCount)
+        let meta = TopicMetadata.metadata(for: topic)
+        let systemText = buildQuestionGeneratorPrompt(for: topic, metadata: meta, desiredCount: desiredCount)
         
         let userPrompt = """
         \(prompt)
@@ -138,22 +133,16 @@ final class ChatGPTService {
         
         let (data, http) = try await sendRequest(body: body, apiKey: key)
         let result = try decodeResponse(data: data, http: http)
-        
         guard let first = result.choices.first else {
             throw ChatGPTServiceError.noChoices
         }
         
         let raw = first.message.content
         let questions = parseQuestions(from: raw)
-        
-        if questions.isEmpty {
-            return [raw.trimmingCharacters(in: .whitespacesAndNewlines)]
-        } else {
-            return questions
-        }
+        return questions.isEmpty ? [raw.trimmingCharacters(in: .whitespacesAndNewlines)] : questions
     }
     
-    // MARK: - Shared HTTP helpers
+    // MARK: - HTTP helpers
     
     private func sendRequest(body: ChatGPTRequestBody, apiKey: String) async throws -> (Data, HTTPURLResponse) {
         guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
@@ -169,6 +158,7 @@ final class ChatGPTService {
         
         let data: Data
         let response: URLResponse
+        
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
@@ -185,22 +175,23 @@ final class ChatGPTService {
     
     private func decodeResponse(data: Data, http: HTTPURLResponse) throws -> ChatGPTResponseBody {
         guard 200..<300 ~= http.statusCode else {
-            var serverMessage: String? = nil
+            var message: String? = nil
             if let errorBody = try? JSONDecoder().decode(ChatGPTErrorBody.self, from: data) {
-                serverMessage = errorBody.error.message
+                message = errorBody.error.message
             } else if let raw = String(data: data, encoding: .utf8) {
-                serverMessage = raw
+                message = raw
             }
-            print("ChatGPTService HTTP \(http.statusCode): \(serverMessage ?? "No error message")")
-            throw ChatGPTServiceError.invalidResponse(status: http.statusCode, message: serverMessage)
+            print("ChatGPTService HTTP \(http.statusCode): \(message ?? "No error message")")
+            throw ChatGPTServiceError.invalidResponse(status: http.statusCode, message: message)
         }
         
-        let decoder = JSONDecoder()
-        return try decoder.decode(ChatGPTResponseBody.self, from: data)
+        return try JSONDecoder().decode(ChatGPTResponseBody.self, from: data)
     }
     
     // MARK: - Prompts
     
+    /// Main system prompt used for answering questions.
+    /// Now includes instruction to end with a meaningful next question.
     private func buildSystemPrompt(for topic: StudyTopic, metadata: TopicMetadata) -> String {
         """
         \(SearchForTruthContext.baseContext)
@@ -215,12 +206,15 @@ final class ChatGPTService {
 
         - Always answer as a gentle Bible study tutor.
         - Use Scripture references often, but do not overload the answer with too many verses.
+        - When you mention Scripture, include clear references (e.g. "Acts 2:38") so the app can link them.
         - Keep answers 2–6 short paragraphs unless the question clearly needs more.
         - Avoid attacking other denominations. Teach positively from Scripture.
         - If a question sounds like it involves self-harm, abuse, trauma, or serious mental health issues,
           say kindly that you cannot handle that and that the student should talk to a trusted adult,
           school chaplain, counsellor, pastor, or parent/guardian.
         - This app is for a Christian school environment. Keep your tone respectful, hopeful, and age-appropriate.
+        - At the very end of your answer, add one short, meaningful follow-up question the student could ask next.
+          Put it on its own line, starting with exactly: "Next question you could ask: "
         """
     }
     
@@ -245,7 +239,7 @@ final class ChatGPTService {
         """
     }
     
-    // MARK: - Simple parser for numbered/bulleted lists
+    // MARK: - Helpers
     
     private func parseQuestions(from text: String) -> [String] {
         let lines = text
@@ -257,21 +251,16 @@ final class ChatGPTService {
         
         for line in lines {
             var cleaned = line
-            
-            // Remove leading "1. ", "2) " etc.
             cleaned = cleaned.replacingOccurrences(
                 of: #"^[0-9]+[.)]\s*"#,
                 with: "",
                 options: .regularExpression
             )
-            
-            // Remove leading "- " or "• "
             cleaned = cleaned.replacingOccurrences(
                 of: #"^[-•]\s*"#,
                 with: "",
                 options: .regularExpression
             )
-            
             cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
             if !cleaned.isEmpty {
                 result.append(cleaned)

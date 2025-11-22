@@ -27,6 +27,7 @@ enum StudyTopic: String, CaseIterable, Identifiable, Codable {
     case identityInChrist
     case obedienceToGod
     case servingOthers
+    case creationVsEvolution   // 👈 NEW TOPIC
     
     var id: String { rawValue }
 }
@@ -370,6 +371,31 @@ This topic explores how following Jesus leads us to serve others with humility, 
                 "How does serving others change your heart and draw you closer to God?",
                 "What gets in the way of serving others, and how can God help you overcome that?"
             ]
+        ),
+        
+        .init(
+            id: .creationVsEvolution,
+            title: "Creation vs Evolution",
+            subtitle: "Trusting God’s Word about our origins",
+            description: """
+This topic helps students compare the Bible’s account of creation with evolutionary ideas. It teaches that Genesis is real history, that God created everything good in six days, and that Adam and Eve were real people whose sin brought death into the world (Romans 5:12). It also shows how a global Flood in Noah’s day can explain much of the fossil record and rock layers.
+
+The focus is to build confidence in the authority of Scripture, encourage respectful discussion, and show that the gospel depends on real sin, a real Fall, and a real Saviour.
+""",
+            keyVerseRefs: [
+                "Genesis 1:1",
+                "Genesis 1:26–27",
+                "Genesis 7:19–20",
+                "Romans 5:12",
+                "Hebrews 11:3"
+            ],
+            starterQuestions: [
+                "What does Genesis 1–3 teach about how God created the world and human beings?",
+                "Why does it matter whether Adam and Eve were real historical people?",
+                "How does a global Flood in Noah’s day help explain fossils and rock layers?",
+                "How is evolution a different worldview from the Bible’s account of creation and the Fall?",
+                "How does what we believe about creation affect how we understand sin, the cross, and the gospel?"
+            ]
         )
     ]
     
@@ -391,7 +417,7 @@ This topic explores how following Jesus leads us to serve others with humility, 
         )
     }
     
-    /// Turn `servingOthers` into "Serving Others", `obedienceToGod` into "Obedience To God", etc.
+    /// Turn `servingOthers` into "Serving Others", `creationVsEvolution` into "Creation Vs Evolution", etc.
     private static func prettyTitle(for topic: StudyTopic) -> String {
         let raw = topic.rawValue
         let withSpaces = raw.replacingOccurrences(

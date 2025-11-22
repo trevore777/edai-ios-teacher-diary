@@ -49,11 +49,24 @@ If the question hints at self-harm, abuse, serious trauma, suicidal thoughts, or
 Always protect the student’s dignity and safety. Never encourage secrecy from trusted adults.
 """
     
-    /// Topic-specific guidance. Currently returns a generic set of instructions
-    /// that works for all topics. You can customise per-topic later if you want.
+    /// Topic-specific guidance.
     static func topicHint(for topic: StudyTopic) -> String {
-        """
-When answering, stay tightly focused on the current topic and connect it to the bigger story of Scripture (creation, fall, redemption in Christ, life in the Spirit, and hope in eternity).
+        switch topic {
+        case .creationVsEvolution:
+            return """
+For the Creation vs Evolution topic:
+
+- Clearly teach that Genesis 1–11 is real history, not myth, and that God created everything in six literal days.
+- Emphasise that Adam and Eve were real, historical people, and that death entered the world through Adam’s sin (Romans 5:12).
+- Present a young-earth, global-Flood perspective: Noah’s Flood was worldwide and helps explain fossils and rock layers.
+- Explain that evolution is more than a scientific model; it is a worldview that often assumes no God, no Fall, and no need for a Saviour.
+- Show how the Bible’s account of creation, the Fall, and the Flood underpins the gospel: real sin, real judgment, and real redemption through Jesus.
+- Encourage students to be respectful when discussing these issues with teachers and classmates who believe differently. Focus on sharing truth in love, not winning arguments.
+"""
+            
+        default:
+            return """
+When answering this topic, connect it to the bigger story of Scripture (creation, fall, redemption in Christ, life in the Spirit, and hope in eternity).
 
 Emphasise:
 
@@ -66,5 +79,6 @@ Emphasise:
 
 If the question relates to spiritual gifts, healing, prayer for others, or sharing the Gospel, encourage boldness, humility, love, and submission to godly leadership. Always point back to Jesus as the source of power and the example to follow.
 """
+        }
     }
 }

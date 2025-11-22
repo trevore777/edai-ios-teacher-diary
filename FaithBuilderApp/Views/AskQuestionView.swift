@@ -26,23 +26,88 @@ struct AskQuestionView: View {
     
     @FocusState private var isQuestionFocused: Bool
     
+    // MARK: - Parsed answer (main text + suggested next question)
+    
+    /// Splits the answer into:
+    /// - mainText: everything except the line that starts with "Next question you could ask:"
+    /// - nextQuestion: the text after that prefix, if present
+    private var parsedAnswer: (mainText: String, nextQuestion: String?) {
+        guard !answerText.isEmpty else {
+            return ("", nil)
+        }
+        
+        let prefix = "Next question you could ask:"
+        let lines = answerText.components(separatedBy: .newlines)
+        
+        var filteredLines: [String] = []
+        var suggestion: String? = nil
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix(prefix) {
+                let remainder = trimmed
+                    .replacingOccurrences(of: prefix, with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !remainder.isEmpty {
+                    suggestion = remainder
+                }
+            } else {
+                filteredLines.append(line)
+            }
+        }
+        
+        let main = filteredLines
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return (main, suggestion)
+    }
+    
     var body: some View {
         VStack(spacing: 12) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    // Topic header
                     Text("Ask about:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(metadata.title)
                         .font(.title2.bold())
                     
-                    // Question
+                    // Suggested prompts from TopicMetadata
+                    if !metadata.starterQuestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Tap a suggested question or write your own:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            ForEach(metadata.starterQuestions, id: \.self) { prompt in
+                                Button {
+                                    questionText = prompt
+                                    isQuestionFocused = true
+                                } label: {
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "lightbulb")
+                                            .foregroundStyle(Color.accentColor)
+                                        Text(prompt)
+                                            .multilineTextAlignment(.leading)
+                                            .foregroundColor(.primary)
+                                    }
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                    }
+                    
+                    // Question input
                     TextField("Type your question here…", text: $questionText, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .lineLimit(3, reservesSpace: true)
                         .focused($isQuestionFocused)
                     
-                    // Category
+                    // Category / folder label
                     TextField("Category (optional, e.g. Youth Camp, Devotions)", text: $categoryText)
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
@@ -63,14 +128,17 @@ struct AskQuestionView: View {
                             .font(.subheadline)
                     }
                     
-                    // ANSWER + READ ALOUD
+                    // Answer
                     if !answerText.isEmpty {
+                        let parsed = parsedAnswer
+                        
                         Divider()
                         HStack {
                             Text("Response")
                                 .font(.headline)
                             Spacer()
                             Button {
+                                // For speech we keep using the full answer (including next-question line)
                                 speechManager.toggleSpeaking(text: answerText)
                             } label: {
                                 Label(
@@ -81,14 +149,49 @@ struct AskQuestionView: View {
                             }
                         }
                         
-                        ScriptureLinkedText(text: answerText)
-                            .font(.body)
-                            .textSelection(.enabled)
+                        if !parsed.mainText.isEmpty {
+                            ScriptureLinkedText(text: parsed.mainText)
+                                .font(.body)
+                                .textSelection(.enabled)
+                        }
+                        
+                        // Suggested next question as a button
+                        if let nextQ = parsed.nextQuestion {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Keep going:")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                Button {
+                                    questionText = nextQ
+                                    // Optional: keep the previous answer visible
+                                    // or clear it if you want a “fresh” screen.
+                                    // answerText = ""
+                                    errorMessage = nil
+                                    DispatchQueue.main.async {
+                                        isQuestionFocused = true
+                                    }
+                                } label: {
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "arrow.turn.down.right")
+                                            .foregroundStyle(Color.accentColor)
+                                        Text(nextQ)
+                                            .multilineTextAlignment(.leading)
+                                            .foregroundColor(.primary)
+                                    }
+                                    .padding(8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.accentColor.opacity(0.8))
+                            }
+                            .padding(.top, 8)
+                        }
                     }
                     
                     // MARK: - KJV Bible context
-                    Divider()
                     
+                    Divider()
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Read KJV Scripture for context")
                             .font(.headline)
@@ -181,6 +284,7 @@ struct AskQuestionView: View {
             
             Divider()
             
+            // Bottom bar
             HStack {
                 Button("Clear") {
                     questionText = ""

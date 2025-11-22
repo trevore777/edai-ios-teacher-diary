@@ -36,11 +36,13 @@
       "size" : "16x16"
     },
     {
+      "filename" : "Logo1 4.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "16x16"
     },
     {
+      "filename" : "Logo1 5.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"
@@ -52,6 +54,7 @@
       "size" : "32x32"
     },
     {
+      "filename" : "Logo1 6.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "128x128"
@@ -63,6 +66,7 @@
       "size" : "128x128"
     },
     {
+      "filename" : "Logo1 7.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
